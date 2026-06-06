@@ -1,31 +1,61 @@
-      - name: Start Cloudflare Tunnel
+name: WINDOWS RDP - CLOUDFLARE
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 9999
+
+    steps:
+      - name: Install cloudflared
         run: |
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "$env:USERPROFILE\cloudflared.exe"
+
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Write-Host "✅ RDP Enabled"
+
+      - name: Set password
+        run: |
+          Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd123!" -Force)
+          Write-Host "✅ Password set"
+
+      - name: Start tunnel and show URL
+        run: |
+          Write-Host "Starting Cloudflare tunnel..."
+          
+          # Start the tunnel in the background
+          $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+          $pinfo.FileName = "$env:USERPROFILE\cloudflared.exe"
+          $pinfo.Arguments = "tunnel --url tcp://localhost:3389"
+          $pinfo.RedirectStandardOutput = $true
+          $pinfo.RedirectStandardError = $true
+          $pinfo.UseShellExecute = $false
+          $pinfo.CreateNoWindow = $true
+          
+          $process = New-Object System.Diagnostics.Process
+          $process.StartInfo = $pinfo
+          $process.Start() | Out-Null
+          
+          # Wait for tunnel to start
+          Start-Sleep -Seconds 15
+          
+          Write-Host ""
           Write-Host "============================================"
-          Write-Host "🚀 WINDOWS RDP - CLOUDFLARE TUNNEL"
-          Write-Host "============================================"
-          
-          # Start tunnel and capture output
-          $tempLog = "$env:TEMP\tunnel.log"
-          $process = Start-Process -FilePath "cloudflared" -ArgumentList "tunnel --url tcp://localhost:3389" -NoNewWindow -PassThru -RedirectStandardOutput $tempLog -RedirectStandardError $tempLog
-          
-          Start-Sleep -Seconds 10
-          
-          # Read and display the URL from the log
-          $logContent = Get-Content $tempLog -Raw
-          if ($logContent -match '(https?://[a-zA-Z0-9.-]+\.trycloudflare\.com)') {
-              $url = $matches[1]
-              Write-Host ""
-              Write-Host "🔗 CONNECTION URL: $url"
-              Write-Host ""
-          }
-          
           Write-Host "📋 CONNECTION DETAILS:"
           Write-Host "   USERNAME: runneradmin"
           Write-Host "   PASSWORD: P@ssw0rd123!"
-          Write-Host "   OS: Windows Server 2022"
-          Write-Host "   CPU: 4 cores"
-          Write-Host "   RAM: 16GB"
           Write-Host "============================================"
-          
-          # Keep the process running
-          Wait-Process -Id $process.Id
+          Write-Host ""
+          Write-Host "⚠️  RUN THIS COMMAND ON YOUR LOCAL COMPUTER:"
+          Write-Host ""
+          Write-Host "   $env:USERPROFILE\cloudflared.exe access rdp --hostname YOUR_TUNNEL_URL --url rdp://localhost:3389"
+          Write-Host ""
+          Write-Host "But you need YOUR_TUNNEL_URL from the Cloudflare dashboard"
+          Write-Host ""
+
+      - name: Keep alive
+        run: while ($true) { Start-Sleep -Seconds 60 }
