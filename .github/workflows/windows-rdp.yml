@@ -1,6 +1,6 @@
-name: WINDOWS RDP - CLOUDFLARE
-on:
-  workflow_dispatch
+name: Windows RDP (Visible URL)
+
+on: workflow_dispatch
 
 jobs:
   build:
@@ -8,44 +8,39 @@ jobs:
     timeout-minutes: 9999
 
     steps:
-      - name: Setup Cloudflared
-        uses: AnimMouse/setup-cloudflared@v2
+      - name: Download Cloudflared
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "$env:USERPROFILE\cloudflared.exe"
 
-      - name: Enable Windows RDP
+      - name: Enable RDP
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-          Write-Host "✅ RDP Enabled Successfully!"
+          Write-Host "✅ RDP Enabled"
 
-      - name: Set Administrator Password
+      - name: Set Password
         run: |
           Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd123!" -Force)
-          Write-Host "✅ Password Configured!"
+          Write-Host "✅ Password set"
 
-      - name: Start Cloudflare Tunnel
+      - name: Start Tunnel & Show URL
         run: |
-          Write-Host "============================================"
-          Write-Host "🚀 WINDOWS RDP - CLOUDFLARE TUNNEL"
-          Write-Host "============================================"
+          Write-Host "Starting tunnel..."
+          $process = Start-Process -FilePath "$env:USERPROFILE\cloudflared.exe" -ArgumentList "tunnel --url tcp://localhost:3389" -NoNewWindow -PassThru
+          Start-Sleep -Seconds 10
           Write-Host ""
-          Start-Process PowerShell -ArgumentList '-NoExit -Command "cloudflared tunnel --url tcp://localhost:3389"'
-          Start-Sleep -Seconds 15
-          Write-Host ""
-          Write-Host "✅ TUNNEL STARTED! Check separate PowerShell window for URL"
-          Write-Host ""
-          Write-Host "📋 CONNECTION DETAILS:"
-          Write-Host "   USERNAME: runneradmin"
-          Write-Host "   PASSWORD: P@ssw0rd123!"
-          Write-Host "   OS: Windows Server 2022"
-          Write-Host "   CPU: 4 cores"
-          Write-Host "   RAM: 16GB"
           Write-Host "============================================"
+          Write-Host "🔗 CONNECTION URL (COPY THIS):"
+          Write-Host "   Run this on YOUR computer:"
+          Write-Host ""
+          Write-Host "   cloudflared.exe access rdp --hostname [THE_URL_BELOW] --url rdp://localhost:3389"
+          Write-Host ""
+          Write-Host "📋 LOGIN DETAILS:"
+          Write-Host "   Username: runneradmin"
+          Write-Host "   Password: P@ssw0rd123!"
+          Write-Host "============================================"
+          
+          while ($true) { Start-Sleep -Seconds 60 }
 
-      - name: Keep Session Alive
-        run: |
-          Write-Host "⏳ Session Active - Keeping alive..."
-          while ($true) {
-            Start-Sleep -Seconds 60
-            Write-Host "✓ Active - $(Get-Date -Format 'HH:mm:ss')"
-          }
+      - name: Keep Alive
+        run: while ($true) { Start-Sleep -Seconds 60 }
